@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# vsdir
+.vs
+x64
+Debug
+Release
+*.filters
+*.user
