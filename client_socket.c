@@ -11,11 +11,11 @@ struct ClientSocket {
 	ClientSocketHandler onSendComplectionHandler;
 };
 
-int socket_iocp_packet_initialize(struct IocpPacket** p);
-int socket_iocp_send(struct IocpPacket* packet, SOCKET sock, const char* buf, int len);
-int socket_iocp_receive(struct IocpPacket* packet, SOCKET sock, char* buf, int len);
-void socket_iocp_packet_release(struct IocpPacket* p);
-void socket_iocp_packet_set_complection_callback(struct IocpPacket* p, IOComplectionCallaback onComplectionCallback, void* userArg);
+int socket_iocp_op_initialize(struct IocpOperator** p, SOCKET socket);
+int socket_iocp_send(struct IocpOperator* op, SOCKET sock, const char* buf, int len);
+int socket_iocp_receive(struct IocpOperator* op, SOCKET sock, char* buf, int len);
+void socket_iocp_op_release(struct IocpOperator* p);
+void socket_iocp_op_set_complection_callback(struct IocpOperator* p, IOComplectionCallaback onComplectionCallback, void* userArg);
 
 int socket_tcp_client_socket_initialize(struct ClientSocket** c, void* sock, void* sockAddrIn) {
 	struct ClientSocket* clientSocket = (struct ClientSocket*)malloc(sizeof(struct ClientSocket));
@@ -53,19 +53,19 @@ void socket_tcp_client_socket_set_connection_close_handler(struct ClientSocket* 
 	c->onConnectionCloseHandler = h;
 }
 
-static void socket_tcp_client_send_callback(struct IocpPacket* packet, char* buf, int len, void* arg) {
+static void socket_tcp_client_send_callback(struct IocpOperator* op, char* buf, int len, void* arg) {
 	struct ClientSocket* clientSocket = (struct ClientSocket*)arg;
 	ClientSocketHandler sendHandler = clientSocket->onSendComplectionHandler;
 	if (sendHandler != NULL) {
 		sendHandler(clientSocket);
 	}
 	free(buf);
-	socket_iocp_packet_release(packet);
+	socket_iocp_op_release(op);
 }
 
 int socket_tcp_client_send(struct ClientSocket* clientSocket, const char* buf, int len) {
  	char* cpyBuf = (char*)malloc(len);
-	struct IocpPacket* packet;
+	struct IocpOperator* op;
 
 	if (cpyBuf == NULL) {
 		return -1;
@@ -73,12 +73,12 @@ int socket_tcp_client_send(struct ClientSocket* clientSocket, const char* buf, i
 
 	memcpy(cpyBuf, buf, len);
 
-	if (socket_iocp_packet_initialize(&packet)) {
+	if (socket_iocp_op_initialize(&op, clientSocket->sock)) {
 		return -1;
 	}
 
-	socket_iocp_packet_set_complection_callback(packet, socket_tcp_client_send_callback, clientSocket);
-	return socket_iocp_send(packet, clientSocket->sock, cpyBuf, len);
+	socket_iocp_op_set_complection_callback(op, socket_tcp_client_send_callback, clientSocket);
+	return socket_iocp_send(op, clientSocket->sock, cpyBuf, len);
 }
 
 /**
@@ -90,7 +90,7 @@ static void socket_tcp_client_socket_release(struct ClientSocket* c) {
 	free(c);
 }
 
-static void socket_tcp_client_receive_callback(struct IocpPacket* packet, char* buf, int len, void* arg) {
+static void socket_tcp_client_receive_callback(struct IocpOperator* op, char* buf, int len, void* arg) {
 	struct ClientSocket* clientSocket = (struct ClientSocket*)arg;
 	if (len <= 0) {
 		//연결이 끊김
@@ -98,7 +98,7 @@ static void socket_tcp_client_receive_callback(struct IocpPacket* packet, char* 
 		if (closeHandler) {
 			closeHandler(clientSocket);
 		}
-		socket_iocp_packet_release(packet);
+		socket_iocp_op_release(op);
 		socket_tcp_client_socket_release(clientSocket);
 		free(buf);
 	} else {
@@ -106,7 +106,7 @@ static void socket_tcp_client_receive_callback(struct IocpPacket* packet, char* 
 		if (h != NULL) {
 			h(clientSocket, buf, len);
 		}
-		socket_iocp_receive(packet, clientSocket->sock, buf, DATA_SIZE);
+		socket_iocp_receive(op, clientSocket->sock, buf, DATA_SIZE);
 	}
 }
 
@@ -115,17 +115,17 @@ static void socket_tcp_client_receive_callback(struct IocpPacket* packet, char* 
  * 이 함수는 자동으로 호출됩니다
  */
 int socket_tcp_client_receive(struct ClientSocket* clientSocket) {
-	struct IocpPacket* packet;
+	struct IocpOperator* op;
 	char* receiveBuf;
 
-	socket_iocp_packet_initialize(&packet);
+	socket_iocp_op_initialize(&op, clientSocket->sock);
 
 	receiveBuf = (char*)malloc(DATA_SIZE);
 	if (receiveBuf == NULL) {
 		return -1;
 	}
 
-	socket_iocp_packet_set_complection_callback(packet, socket_tcp_client_receive_callback, clientSocket);
+	socket_iocp_op_set_complection_callback(op, socket_tcp_client_receive_callback, clientSocket);
 
-	return socket_iocp_receive(packet, clientSocket->sock, receiveBuf, DATA_SIZE);
+	return socket_iocp_receive(op, clientSocket->sock, receiveBuf, DATA_SIZE);
 }
