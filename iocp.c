@@ -4,7 +4,7 @@
 #include "socket.h"
 struct ClientSocket;
 
-struct IocpOperator {
+struct Poll {
 	/**
 	 * overlapped는 항상 맨 위에 위치하게 할 것.
 	 * WSA 함수에 overapped로 전달 시 
@@ -18,29 +18,29 @@ struct IocpOperator {
 };
 
 
-int socket_iocp_op_initialize(struct IocpOperator** p, SOCKET socket) {
-	struct IocpOperator* iocpOp = (struct IocpOperator*) malloc(sizeof(struct IocpOperator));
+int socket_iocp_op_initialize(struct Poll** p, SOCKET socket) {
+	struct Poll* iocpOp = (struct Poll*) malloc(sizeof(struct Poll));
 
 	if (iocpOp == NULL) {
 		return -1;
 	}
 
-	memset(iocpOp, 0, sizeof(struct IocpOperator));
+	memset(iocpOp, 0, sizeof(struct Poll));
 	iocpOp->socket = socket;
 	*p = iocpOp;
 	return 0;
 }
 
-void socket_iocp_op_set_complection_callback(struct IocpOperator* p, IOComplectionCallaback onComplectionCallback, void* userArg) {
+void socket_iocp_op_set_complection_callback(struct Poll* p, IOComplectionCallaback onComplectionCallback, void* userArg) {
 	p->onComplectionCallback = onComplectionCallback;
 	p->userArg = userArg;
 }
 
-void socket_iocp_op_release(struct IocpOperator* p) {
+void socket_iocp_op_release(struct Poll* p) {
 	free(p);
 }
 
-int socket_iocp_send(struct IocpOperator* op, SOCKET sock, const char* buf, int len) {
+int socket_iocp_send(struct Poll* op, SOCKET sock, const char* buf, int len) {
 
 	int sendBytes = 0;
 	WSABUF* wsaBuf = &op->wsaBuf;
@@ -64,13 +64,12 @@ int socket_iocp_send(struct IocpOperator* op, SOCKET sock, const char* buf, int 
 	return 0;
 }
 
-int socket_iocp_receive(struct IocpOperator* op, SOCKET sock, char* buf, int len) {
+int socket_iocp_receive(struct Poll* op, SOCKET sock, char* buf, int len) {
 	DWORD flags = 0;
 
 	WSABUF* wsaBuf = &op->wsaBuf;
 	wsaBuf->buf = buf;
 	wsaBuf->len = len;
-
 	if (WSARecv(sock,
 		&op->wsaBuf,
 		1,
@@ -86,7 +85,7 @@ int socket_iocp_receive(struct IocpOperator* op, SOCKET sock, char* buf, int len
 	return 0;
 }
 
-void iocp_call_complection_callback(struct IocpOperator* op, int receiveBytes) {
+void iocp_call_complection_callback(struct Poll* op, int receiveBytes) {
 	IOComplectionCallaback cb = op->onComplectionCallback;
 	if (cb) {
 		cb(op,
@@ -100,11 +99,11 @@ static DWORD WINAPI socket_tcp_client_socket_iocp_thread(LPVOID arg) {
 	HANDLE iocp = (HANDLE)arg;
 	OVERLAPPED_ENTRY entries[64];
 	ULONG entriesCount;
-	int i;
+	ULONG i;
 	while (1) {
-		if (GetQueuedCompletionStatusEx(iocp, &entries[0], 64, &entriesCount, 0, 0)) {
+		if (GetQueuedCompletionStatusEx(iocp, &entries[0], 64, &entriesCount, INFINITE, 0)) {
 			for (i = 0; i < entriesCount; ++i) {
-				struct IocpOperator* op = (struct IocpOperator*)entries[i].lpOverlapped;
+				struct Poll* op = (struct Poll*)entries[i].lpOverlapped;
 				iocp_call_complection_callback(op, entries[i].dwNumberOfBytesTransferred);
 			}
 		}

@@ -3,8 +3,8 @@
 extern "C" {
 #endif
 
-struct IocpOperator;
-typedef void(*IOComplectionCallaback)(struct IocpOperator* p, char* buf, int len, void* arg);
+struct Poll;
+typedef void(*IOComplectionCallaback)(struct Poll* p, char* buf, int len, void* arg);
 
 struct ServerSocket;
 struct ClientSocket;

@@ -83,9 +83,9 @@ int socket_tcp_serversocket_accept_client(struct ServerSocket* serverSocket) {
 
 	SOCKADDR_IN addr;
 	struct ClientSocket* clientSocket;
+	int addrLen = sizeof(SOCKADDR_IN);
 	while (1) {
-		int addrLen = sizeof(SOCKADDR_IN);
-		SOCKET sock = accept(serverSocket->sock, (SOCKADDR*)&addr, &addrLen);
+		SOCKET sock = WSAAccept(serverSocket->sock, (SOCKADDR*)&addr, &addrLen, 0, 0);
 
 		if (sock == INVALID_SOCKET) {
 			continue;
